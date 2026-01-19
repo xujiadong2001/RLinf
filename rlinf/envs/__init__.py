@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
+import faulthandler
+import multiprocessing as mp
+import os
+import warnings
 from enum import Enum
 
 
@@ -28,6 +33,59 @@ class SupportedEnvType(Enum):
     FRANKASIM = "frankasim"
 
 
+def _ensure_libero_start_method() -> None:
+    start_method = mp.get_start_method(allow_none=True)
+    if start_method is None:
+        mp.set_start_method("spawn")
+        return
+    if start_method != "spawn":
+        if os.environ.get("RLINF_LIBERO_FORCE_SPAWN") == "1":
+            mp.set_start_method("spawn", force=True)
+            return
+        warnings.warn(
+            "Libero import can hang when multiprocessing uses fork with active "
+            "threads. Set multiprocessing start method to 'spawn' in the entrypoint "
+            "or set RLINF_LIBERO_FORCE_SPAWN=1 to override.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+
+def _maybe_enable_libero_import_watchdog():
+    timeout_raw = os.environ.get("RLINF_LIBERO_IMPORT_TIMEOUT", "").strip()
+    if not timeout_raw:
+        return None
+    try:
+        timeout = float(timeout_raw)
+    except ValueError:
+        warnings.warn(
+            "Invalid RLINF_LIBERO_IMPORT_TIMEOUT value. Expected seconds as float.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return None
+    if timeout <= 0:
+        warnings.warn(
+            "RLINF_LIBERO_IMPORT_TIMEOUT must be greater than 0 to enable.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return None
+    was_enabled = faulthandler.is_enabled()
+    if not was_enabled:
+        faulthandler.enable(all_threads=True)
+    faulthandler.dump_traceback_later(timeout, repeat=False)
+
+    def cleanup() -> None:
+        with contextlib.suppress(Exception):
+            faulthandler.cancel_dump_traceback_later()
+        if not was_enabled:
+            with contextlib.suppress(Exception):
+                faulthandler.disable()
+
+    return cleanup
+
+
 def get_env_cls(env_type: str, env_cfg=None, enable_offload=False):
     """
     Get environment class based on environment type.
@@ -38,6 +96,12 @@ def get_env_cls(env_type: str, env_cfg=None, enable_offload=False):
 
     Returns:
         Environment class corresponding to the environment type.
+
+    Notes:
+        For LIBERO, set RLINF_LIBERO_IMPORT_TIMEOUT to a positive number of seconds
+        to dump stack traces if the import stalls. Use RLINF_LIBERO_FORCE_SPAWN=1 if
+        you need to force multiprocessing to use the "spawn" start method in this
+        process.
     """
 
     env_type = SupportedEnvType(env_type)
@@ -52,7 +116,13 @@ def get_env_cls(env_type: str, env_cfg=None, enable_offload=False):
 
         return ManiskillEnv
     elif env_type == SupportedEnvType.LIBERO:
-        from rlinf.envs.libero.libero_env import LiberoEnv
+        _ensure_libero_start_method()
+        watchdog_cleanup = _maybe_enable_libero_import_watchdog()
+        try:
+            from rlinf.envs.libero.libero_env import LiberoEnv
+        finally:
+            if watchdog_cleanup:
+                watchdog_cleanup()
 
         return LiberoEnv
     elif env_type == SupportedEnvType.ROBOTWIN:
