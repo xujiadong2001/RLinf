@@ -218,8 +218,13 @@ multiprocessing 使用 ``fork``，子进程会继承父进程的线程与锁，�
 
 **排查/解决**：
 
-1. **优先使用 spawn**：在入口脚本最开始设置
-   ``multiprocessing.set_start_method("spawn", force=True)``。
+1. **优先使用 spawn**：在入口脚本最开始加入：
+
+   .. code-block:: python
+
+      import multiprocessing as mp
+
+      mp.set_start_method("spawn", force=True)
 2. **强制 spawn**：若无法修改入口，设置环境变量
    ``RLINF_LIBERO_FORCE_SPAWN=1``。
 3. **导入超时栈追踪**：设置 ``RLINF_LIBERO_IMPORT_TIMEOUT=<秒>``
