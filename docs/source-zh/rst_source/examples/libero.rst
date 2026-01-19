@@ -206,6 +206,25 @@
 
    bash examples/embodiment/run_embodiment.sh libero_10_grpo_openvlaoft
 
+常见问题：导入 LIBERO 卡住
+-------------------------------
+
+**现象**：训练时卡在 ``get_env_cls`` 的 Libero 导入，但单独运行
+``from rlinf.envs.libero.libero_env import LiberoEnv`` 却正常。
+
+**原因**：训练脚本通常已启动线程/进程（Ray、Torch、日志线程等）。若
+multiprocessing 使用 ``fork``，子进程会继承父进程的线程与锁，导致大型依赖
+（MuJoCo/robosuite/libero）在导入时出现死锁。单独导入没有这些线程/锁，因此不复现。
+
+**排查/解决**：
+
+1. **优先使用 spawn**：在入口脚本最开始设置
+   ``multiprocessing.set_start_method("spawn", force=True)``。
+2. **强制 spawn**：若无法修改入口，设置环境变量
+   ``RLINF_LIBERO_FORCE_SPAWN=1``。
+3. **导入超时栈追踪**：设置 ``RLINF_LIBERO_IMPORT_TIMEOUT=<秒>``
+   （如 ``60``），导入卡住时会打印所有线程栈，便于定位死锁点。
+
 可视化与结果
 -------------------------
 
