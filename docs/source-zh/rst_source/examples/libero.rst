@@ -209,7 +209,7 @@
 常见问题：导入 LIBERO 卡住
 -------------------------------
 
-**现象**：训练时卡在 ``get_env_cls`` 的 Libero 导入，但单独运行
+**现象**：多进程训练初始化环境时卡在 ``get_env_cls`` 的 Libero 导入，但单独运行
 ``from rlinf.envs.libero.libero_env import LiberoEnv`` 却正常。
 
 **原因**：训练脚本通常已启动线程/进程（Ray、Torch、日志线程等）。在 Linux/Unix
@@ -225,11 +225,13 @@
 
       import multiprocessing as mp
 
-      mp.set_start_method("spawn", force=True)
+      if mp.get_start_method(allow_none=True) != "spawn":
+          mp.set_start_method("spawn", force=True)
 2. **强制 spawn**：设置环境变量 ``RLINF_LIBERO_FORCE_SPAWN=1``。
    - 需在进程启动前设置，否则已运行的进程不会生效。
 3. **导入超时栈追踪**：设置 ``RLINF_LIBERO_IMPORT_TIMEOUT=<秒>``（如 ``60``）。
-   - 仅用于诊断（打印线程栈），不会自动恢复或终止导入。
+   - 仅用于诊断（通过 ``faulthandler.dump_traceback_later`` 打印线程栈），
+     不会自动恢复或终止导入。
    - 超时后需手动中断或继续等待。
 
 可视化与结果
