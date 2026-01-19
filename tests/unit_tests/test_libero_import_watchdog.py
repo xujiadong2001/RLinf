@@ -29,7 +29,7 @@ def test_libero_import_watchdog_disabled(monkeypatch):
     monkeypatch.setattr(faulthandler, "dump_traceback_later", fake_dump)
     monkeypatch.setattr(faulthandler, "enable", lambda **_kwargs: None)
 
-    assert envs._maybe_enable_libero_import_watchdog() is False
+    assert envs._maybe_enable_libero_import_watchdog() is None
     assert "called" not in calls
 
 
@@ -38,7 +38,7 @@ def test_libero_import_watchdog_invalid_timeout(monkeypatch):
     monkeypatch.setattr(faulthandler, "enable", lambda **_kwargs: None)
 
     with pytest.warns(RuntimeWarning, match="RLINF_LIBERO_IMPORT_TIMEOUT"):
-        assert envs._maybe_enable_libero_import_watchdog() is False
+        assert envs._maybe_enable_libero_import_watchdog() is None
 
 
 def test_libero_import_watchdog_non_positive_timeout(monkeypatch):
@@ -46,20 +46,38 @@ def test_libero_import_watchdog_non_positive_timeout(monkeypatch):
     monkeypatch.setattr(faulthandler, "enable", lambda **_kwargs: None)
 
     with pytest.warns(RuntimeWarning, match="greater than 0"):
-        assert envs._maybe_enable_libero_import_watchdog() is False
+        assert envs._maybe_enable_libero_import_watchdog() is None
 
 
 def test_libero_import_watchdog_enabled(monkeypatch):
     monkeypatch.setenv("RLINF_LIBERO_IMPORT_TIMEOUT", "0.1")
     calls = {}
 
+    monkeypatch.setattr(faulthandler, "is_enabled", lambda: False)
+
+    def fake_enable(**kwargs):
+        calls["enable"] = kwargs
+
     def fake_dump(timeout, **kwargs):
         calls["timeout"] = timeout
         calls["kwargs"] = kwargs
 
-    monkeypatch.setattr(faulthandler, "dump_traceback_later", fake_dump)
-    monkeypatch.setattr(faulthandler, "enable", lambda **_kwargs: None)
+    def fake_cancel():
+        calls["cancel"] = True
 
-    assert envs._maybe_enable_libero_import_watchdog() is True
+    def fake_disable():
+        calls["disable"] = True
+
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", fake_dump)
+    monkeypatch.setattr(faulthandler, "enable", fake_enable)
+    monkeypatch.setattr(faulthandler, "cancel_dump_traceback_later", fake_cancel)
+    monkeypatch.setattr(faulthandler, "disable", fake_disable)
+
+    cleanup = envs._maybe_enable_libero_import_watchdog()
+    assert callable(cleanup)
+    cleanup()
+    assert calls["enable"] == {"all_threads": True}
     assert calls["timeout"] == 0.1
     assert calls["kwargs"]["repeat"] is False
+    assert calls["cancel"] is True
+    assert calls["disable"] is True

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import faulthandler
 import multiprocessing as mp
 import os
@@ -50,10 +51,10 @@ def _ensure_libero_start_method() -> None:
         )
 
 
-def _maybe_enable_libero_import_watchdog() -> bool:
+def _maybe_enable_libero_import_watchdog():
     timeout_raw = os.environ.get("RLINF_LIBERO_IMPORT_TIMEOUT", "").strip()
     if not timeout_raw:
-        return False
+        return None
     try:
         timeout = float(timeout_raw)
     except ValueError:
@@ -62,17 +63,27 @@ def _maybe_enable_libero_import_watchdog() -> bool:
             RuntimeWarning,
             stacklevel=2,
         )
-        return False
+        return None
     if timeout <= 0:
         warnings.warn(
             "RLINF_LIBERO_IMPORT_TIMEOUT must be greater than 0 to enable.",
             RuntimeWarning,
             stacklevel=2,
         )
-        return False
-    faulthandler.enable(all_threads=True)
+        return None
+    was_enabled = faulthandler.is_enabled()
+    if not was_enabled:
+        faulthandler.enable(all_threads=True)
     faulthandler.dump_traceback_later(timeout, repeat=False)
-    return True
+
+    def cleanup() -> None:
+        with contextlib.suppress(Exception):
+            faulthandler.cancel_dump_traceback_later()
+        if not was_enabled:
+            with contextlib.suppress(Exception):
+                faulthandler.disable()
+
+    return cleanup
 
 
 def get_env_cls(env_type: str, env_cfg=None, enable_offload=False):
@@ -106,12 +117,12 @@ def get_env_cls(env_type: str, env_cfg=None, enable_offload=False):
         return ManiskillEnv
     elif env_type == SupportedEnvType.LIBERO:
         _ensure_libero_start_method()
-        watchdog_enabled = _maybe_enable_libero_import_watchdog()
+        watchdog_cleanup = _maybe_enable_libero_import_watchdog()
         try:
             from rlinf.envs.libero.libero_env import LiberoEnv
         finally:
-            if watchdog_enabled:
-                faulthandler.cancel_dump_traceback_later()
+            if watchdog_cleanup:
+                watchdog_cleanup()
 
         return LiberoEnv
     elif env_type == SupportedEnvType.ROBOTWIN:
