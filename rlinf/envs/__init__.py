@@ -64,6 +64,11 @@ def _maybe_enable_libero_import_watchdog() -> bool:
         )
         return False
     if timeout <= 0:
+        warnings.warn(
+            "RLINF_LIBERO_IMPORT_TIMEOUT must be greater than 0 to enable.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return False
     faulthandler.enable(all_threads=True)
     faulthandler.dump_traceback_later(timeout, repeat=False)
@@ -82,9 +87,10 @@ def get_env_cls(env_type: str, env_cfg=None, enable_offload=False):
         Environment class corresponding to the environment type.
 
     Notes:
-        For LIBERO, set RLINF_LIBERO_IMPORT_TIMEOUT (seconds) to dump stack traces
-        if the import stalls. Use RLINF_LIBERO_FORCE_SPAWN=1 if you need to force
-        multiprocessing to use the "spawn" start method in this process.
+        For LIBERO, set RLINF_LIBERO_IMPORT_TIMEOUT to a positive number of seconds
+        to dump stack traces if the import stalls. Use RLINF_LIBERO_FORCE_SPAWN=1 if
+        you need to force multiprocessing to use the "spawn" start method in this
+        process.
     """
 
     env_type = SupportedEnvType(env_type)

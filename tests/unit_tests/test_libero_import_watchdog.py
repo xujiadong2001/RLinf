@@ -41,6 +41,14 @@ def test_libero_import_watchdog_invalid_timeout(monkeypatch):
         assert envs._maybe_enable_libero_import_watchdog() is False
 
 
+def test_libero_import_watchdog_non_positive_timeout(monkeypatch):
+    monkeypatch.setenv("RLINF_LIBERO_IMPORT_TIMEOUT", "0")
+    monkeypatch.setattr(faulthandler, "enable", lambda **_kwargs: None)
+
+    with pytest.warns(RuntimeWarning, match="greater than 0"):
+        assert envs._maybe_enable_libero_import_watchdog() is False
+
+
 def test_libero_import_watchdog_enabled(monkeypatch):
     monkeypatch.setenv("RLINF_LIBERO_IMPORT_TIMEOUT", "0.1")
     calls = {}
