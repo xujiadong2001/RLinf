@@ -80,6 +80,36 @@ torch_memory_saver.cpp 中 CUDA CUresult Error（result=2）
 
 ------------------------------------
 
+π\ :sub:`0.5`\ + LIBERO 推理在 RTX 4090 上爆显存
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**现象：** 使用 `eval_embodiment.sh` 或 `run_embodiment.sh` 推理 π\ :sub:`0.5`\ + LIBERO，
+在 RTX 4090（24GB 显存）上出现 ``CUDA out of memory``。
+
+**原因：**
+
+- π\ :sub:`0.5`\ 模型显存占用更高（更长的扩散步数 + 价值头在 VLM 之后）。
+- 单卡时 ``env``/``rollout``/``actor`` 同卡常驻且未开启 offload。
+- LIBERO 评测默认 ``env.eval.total_num_envs`` 较大且默认录制视频，会进一步抬高显存峰值。
+
+**自查：**
+
+1. 用 ``nvitop`` 或 ``nvidia-smi`` 查看 ``env``/``rollout``/``actor`` 是否同时常驻。
+2. 检查配置中的 ``env.eval.total_num_envs``、``video_cfg.save_video``、``actor.micro_batch_size``。
+3. 通过日志前缀确认 OOM 出现在 ``rollout`` 还是 ``actor`` 阶段。
+
+**缓解：**
+
+- 单卡评测时，将 ``env.eval.total_num_envs`` 降至 32～64，并保持 ``auto_reset=True``，配合
+  ``max_steps_per_rollout_epoch`` 保持总评测量一致。
+- 关闭视频录制 ``env.eval.video_cfg.save_video=False``。
+- 单卡共享时开启 ``env.enable_offload=True``、``rollout.enable_offload=True``、
+  ``actor.enable_offload=True``，或使用多卡分离 placement。
+- 若仍 OOM，降低 ``actor.micro_batch_size``，同时保证
+  ``global_batch_size = micro_batch_size × GPU 数`` 为整数倍。
+
+------------------------------------
+
 Gloo 超时 / “Global rank x is not part of group”
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
