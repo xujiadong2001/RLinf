@@ -83,7 +83,7 @@ torch_memory_saver.cpp 中 CUDA CUresult Error（result=2）
 π\ :sub:`0.5`\ + LIBERO 推理在 RTX 4090 上爆显存
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**现象：** 使用 `eval_embodiment.sh` 或 `run_embodiment.sh` 推理 π\ :sub:`0.5`\ + LIBERO，
+**现象：** 使用 ``eval_embodiment.sh`` 或 ``run_embodiment.sh`` 推理 π\ :sub:`0.5`\ + LIBERO，
 在 RTX 4090（24GB 显存）上出现 ``CUDA out of memory``。
 
 **原因：**
