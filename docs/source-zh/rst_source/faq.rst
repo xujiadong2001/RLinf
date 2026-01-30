@@ -95,7 +95,7 @@ torch_memory_saver.cpp 中 CUDA CUresult Error（result=2）
 **自查：**
 
 1. 用 ``nvitop`` 或 ``nvidia-smi`` 查看 ``env``/``rollout``/``actor`` 是否同时常驻。
-2. 检查配置中的 ``env.eval.total_num_envs``、``video_cfg.save_video``、``actor.micro_batch_size``。
+2. 检查配置中的 ``env.eval.total_num_envs``、``env.eval.video_cfg.save_video``、``actor.micro_batch_size``。
 3. 通过日志前缀确认 OOM 出现在 ``rollout`` 还是 ``actor`` 阶段。
 
 **缓解：**
